@@ -32,6 +32,8 @@ export default function App() {
   const [regex, setRegex] = useState<string>("");
   const [regexFlags, setRegexFlags] = useState<string>("");
   const [regexSource, setRegexSource] = useState<string>("");
+  const [displayRegex, setDisplayRegex] = useState<string>("");
+  const [displayRegexSource, setDisplayRegexSource] = useState<string>("");
 
   // Row filter shown in UI (prefer normalized from backend)
   const [rowFilter, setRowFilter] = useState<string>("");
@@ -64,9 +66,10 @@ export default function App() {
     return origin ? origin + path : downloadUrl;
   }, [downloadUrl]);
 
+  const effectiveRegexForDisplay = displayRegex || regex;
 
   const hasRowFilter = rowFilter.trim().length > 0;
-  const hasRealPattern = !!regex && !isMatchAllRegex(regex);
+  const hasRealPattern = !!effectiveRegexForDisplay && !isMatchAllRegex(effectiveRegexForDisplay);
   const shouldShowResultRows =
     hasRowFilter &&
     hasRealPattern &&
@@ -131,6 +134,8 @@ export default function App() {
     setPage(1);
     setResultRowsDescription(null);
     setResultRowsCount(null);
+    setDisplayRegex("");
+    setDisplayRegexSource("");
   }
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -169,11 +174,16 @@ export default function App() {
     setSmartMode(null);
     setShowHitsOnly(false);
     setReplaceHeadHits([]);
+    setRegex("");
+    setRegexFlags("");
+    setRegexSource("");
     setRowFilter("");
     setMaskHeadIndices(null);
     setPage(1);
     setResultRowsDescription(null);
     setResultRowsCount(null);
+    setDisplayRegex("");
+    setDisplayRegexSource("");
 
     try {
       const res = await fetch(`${API_BASE}/execute`, {
@@ -192,6 +202,15 @@ export default function App() {
       setRegex(json.regex || "");
       setRegexFlags(json.flags || "");
       setRegexSource(json.regex_source || "");
+
+      // Display-only regex (e.g. row_filter-derived for REPLACE)
+      const dr = typeof json.display_regex === "string" ? json.display_regex : "";
+      const drSource =
+        typeof json.display_regex_source === "string" ? json.display_regex_source : "";
+
+      setDisplayRegex(dr);
+      setDisplayRegexSource(drSource);
+
       if (json.intent) setIntentInfo(json.intent as IntentInfo);
 
       // Prefer normalized row filter if present, otherwise original
@@ -435,12 +454,16 @@ export default function App() {
             ))}
           </div>
 
-          {showRegex && (regex || intentInfo || rowFilter) && (
+          {showRegex && (effectiveRegexForDisplay || intentInfo || rowFilter) && (
             <div className="actions">
-              {regex && (
-                <div className="regex-chip" title={regex}>
-                  <code>{regex}</code>
-                  <span className="source">{regexSource || "regex"}</span>
+              {effectiveRegexForDisplay && (
+                <div className="regex-chip" title={effectiveRegexForDisplay}>
+                  <code>{effectiveRegexForDisplay}</code>
+                  <span className="source">
+                    {displayRegex
+                      ? displayRegexSource || "row_filter-derived"
+                      : regexSource || "regex"}
+                  </span>
                 </div>
               )}
               {rowFilter && (

@@ -113,7 +113,7 @@ Open http://localhost:5173 (Vite default). The frontend expects the backend at h
 - A future improvement could be to allow users to replace more than one value at a time (e.g., mapping "NY" → "New York", "CA" → "California", etc).
 
 ## Demo
-A live demo is hosted at: [https://regex-pattern-app.rhombus.ai](https://regex-pattern-app.rhombus.ai)
+A video demo is hosted at: [Youtube](https://youtu.be/N2QLOWWpXFw)
 
 ---
 

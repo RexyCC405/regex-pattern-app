@@ -424,9 +424,12 @@ def _ensure_mask_from_query(df: pd.DataFrame, query: Optional[str]) -> pd.Series
     mask = _mask_from_query_with_rownum(df, norm)
     print(f"[ROW_FILTER_RESULT] path=or_groups, rows={int(mask.sum())}/{len(df)}, indices_head={list(df.index[mask][:10])}")
 
-    # Soft recall for a trivial equality if nothing matched (single-col quick path)
+    # soft-recall guess when the entire query is a single column == 'value' condition
     if mask.sum() == 0:
-        m = re.match(r"""\s*([A-Za-z0-9_ ]+)\s*==\s*['"](.+?)['"]\s*""", str(query))
+        m = re.fullmatch(
+            r"""\s*`?([A-Za-z0-9_ ]+)`?\s*==\s*['"](.+?)['"]\s*""",
+            str(query)
+        )
         if m:
             col, val = m.group(1).strip(), m.group(2)
             if col in df.columns:
@@ -560,6 +563,10 @@ def execute_plan(
     use_pattern = pattern or ""
     regex_source = "regex"
 
+    display_regex: Optional[str] = None
+    display_regex_source: Optional[str] = None
+    display_columns: List[str] = list(cols)  # default: actual applied columns
+
     if intent.lower() == "find":
         # Try to derive tokens/columns from the row_filter, for complex cases
         disp_rx, disp_cols = _display_regex_and_columns_from_row_filter(norm_row_filter)
@@ -574,8 +581,51 @@ def execute_plan(
             if columns is None and disp_cols:
                 cols = [c for c in disp_cols if c in df.columns]
 
+        if disp_rx:
+            display_regex = disp_rx
+            display_regex_source = "row_filter-derived"
+        else:
+            display_regex = use_pattern
+            display_regex_source = regex_source
+
         # Else: pattern is non-trivial -> we respect it and the explicit columns.
-        # You could still UNION disp_rx for UI-only, but we don't change semantics.
+        # could still UNION disp_rx for UI-only, but we don't change semantics.
+
+    # TODO:
+    # Our "row_filter-derived regex" logic works well for FIND but is confusing for REPLACE.
+    # For FIND, pattern "^.*$" is treated as "no real pattern", so we replace it with a
+    # regex inferred from row_filter (e.g. (?:Female|United\ States|Male|Great\ Britain)),
+    # and auto-pick the referenced text columns. That’s fine for display + highlighting.
+    #
+    # For REPLACE, doing the same breaks expectations: callers often use pattern "^.*$"
+    # to mean "clobber whole cell values in the selected columns for rows matching
+    # row_filter". Overriding "^.*$" with a row_filter-derived regex means we only
+    # replace when the cell literally contains those tokens, which fails when the
+    # selected columns (e.g. Id, Age) never contain "Female"/"Male"/etc, so total
+    # replacements = 0 even though the row_filter matched.
+
+    if intent.lower() == "replace":
+        # Default display: just show the actual pattern
+        if use_pattern:
+            display_regex = use_pattern
+            display_regex_source = "regex"
+
+        # Don’t derive anything special for DATE_NORMALIZE mode
+        sentinel = str(replacement or "")
+        is_date_normalize = sentinel.startswith("__DATE_NORMALIZE__(") and sentinel.endswith(")")
+
+        # If not DATE_NORMALIZE, we *may* derive a nicer display regex from row_filter
+        if not is_date_normalize and norm_row_filter:
+            disp_rx, disp_cols = _display_regex_and_columns_from_row_filter(norm_row_filter)
+
+            # Only treat empty / match-all pattern as "no meaningful pattern"
+            if (not pattern or _MATCH_ALL_RE.match(pattern)) and disp_rx:
+                display_regex = disp_rx
+                display_regex_source = "row_filter-derived"
+
+                # Only tighten display columns if caller didn't explicitly pass "columns"
+                if columns is None and disp_cols:
+                    display_columns = [c for c in disp_cols if c in df.columns]
 
     # Safety: ensure a non-empty pattern before compiling for REPLACE mode too
     if not use_pattern:
@@ -636,6 +686,8 @@ def execute_plan(
             "mode": "find",
             "regex": use_pattern,                      # may be row_filter-derived or a union
             "regex_source": regex_source,              # "regex" | "row_filter-derived" | "regex|row_filter-derived"
+            "display_regex": display_regex,
+            "display_regex_source": display_regex_source,
             "flags": flags,
             "columns_applied": cols,
             "row_filter": row_filter,
@@ -828,6 +880,9 @@ def execute_plan(
         "mode": "replace",
         "regex": use_pattern,
         "regex_source": regex_source,
+        "display_regex": display_regex,
+        "display_regex_source": display_regex_source,
+        "display_columns": display_columns,
         "flags": flags,
         "columns_applied": cols,
         "row_filter": row_filter,

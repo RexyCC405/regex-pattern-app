@@ -213,7 +213,7 @@ Return exactly:
 
 Recall-first rules:
 - If the row filters cover all conditions to find the targets, then simply set pattern '^.*$'.
-- For complex conditions, prefer row_filter + pattern='^.*$' over complex regexes.
+- For complex conditions (like combinations of AND/OR), prefer row_filter + pattern='^.*$' over complex regexes.
 - Prefer '.*token.*' for cell-level contains; for multi-word tokens allow flexible separators with '[-_.:/\\s]*'.
 - Whole-cell overwrite: use row_filter to target rows and '^.*$' as the pattern in chosen columns.
 - Keep one simple regex; avoid lookbehinds. Default flags: 'iu'; add 'm' or 's' only if clearly needed.
@@ -416,10 +416,10 @@ def plan_with_llm(
         return plan.normalize(), src, ""
     
     MAX_ATTEMPTS = max(1, int(os.getenv("MAX_LLM_ATTEMPTS", "2")))
-    ENABLE_CRITIC = os.getenv("ENABLE_CRITIC", "0") == "0" # default to disable to save token costs
+    ENABLE_CRITIC = 0 # default to disable to save token costs
 
     try:
-        print("using gemini")
+        # print("using gemini")
         client, model, gen_cfg = _gemini_client()
 
         # attempt 1
