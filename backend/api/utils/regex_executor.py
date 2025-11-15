@@ -563,6 +563,8 @@ def execute_plan(
     use_pattern = pattern or ""
     regex_source = "regex"
 
+    row_filter_only_hits = False
+
     display_regex: Optional[str] = None
     display_regex_source: Optional[str] = None
     display_columns: List[str] = list(cols)  # default: actual applied columns
@@ -574,9 +576,9 @@ def execute_plan(
         # If the LLM did NOT supply a meaningful pattern (empty or match-all),
         # we can safely adopt the row_filter-derived regex/columns.
         if (not use_pattern or _MATCH_ALL_RE.match(use_pattern)) and disp_rx:
+            row_filter_only_hits = True
             use_pattern = disp_rx
             regex_source = "row_filter-derived"
-
             # Only override cols if the plan didn't explicitly specify "columns"
             if columns is None and disp_cols:
                 cols = [c for c in disp_cols if c in df.columns]
@@ -671,7 +673,20 @@ def execute_plan(
             if row_has_any:
                 examples.append(ex)
 
+        if row_filter_only_hits:
+            changed_rows = set()
+            for lbl in df.index[mask]:
+                try:
+                    changed_rows.add(int(lbl))
+                except Exception:
+                    print(f"[INDEX_LABEL_SKIP] non-integer index label in mask: {lbl}")
+                    pass
+            rows_with_hits = len(changed_rows)
+        else:
+            rows_with_hits = len(changed_rows)
+
         head_hits = [i for i in sorted(changed_rows) if i < head_n]
+        print("head_hits:", head_hits)
 
         # Safer mask index export (ints only)
         mask_idx_ints: List[int] = []
@@ -682,6 +697,15 @@ def execute_plan(
                 print(f"[INDEX_LABEL_SKIP] non-integer index label in mask: {lbl}")
                 pass
 
+        result_rows_description = (
+            "Result rows = rows where row_filter is true."
+            if row_filter_only_hits
+            else (
+                "Result rows = rows where "
+                "row_filter is true AND at least one of the selected columns matches the pattern."
+            )
+        )
+        
         payload = {
             "mode": "find",
             "regex": use_pattern,                      # may be row_filter-derived or a union
@@ -705,10 +729,7 @@ def execute_plan(
             "head": df.head(head_n).to_dict(orient="records"),
 
             # For UI
-            "result_rows_description": (
-                "Result rows = rows where "
-                "row_filter is true AND at least one of the selected columns matches the pattern."
-            ),
+            "result_rows_description": result_rows_description,
             "result_rows_count": rows_with_hits,
             "result_rows_indices": [int(i) for i in sorted(changed_rows)[:2000]],
         }

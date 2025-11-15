@@ -6,6 +6,7 @@ export const pythonToJsFlags = (flags?: string) => {
 };
 
 export const makeRegex = (pattern?: string, flags?: string): RegExp | null => {
+  console.log("makeRegex called with pattern:", pattern, "and flags:", flags);
   if (!pattern) return null;
   try {
     return new RegExp(pattern, pythonToJsFlags(flags));
