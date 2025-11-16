@@ -54,6 +54,10 @@ def _normalize_row_filter(query: str, headers: List[str]) -> str:
 
     q = str(query)
 
+    # Convert JS-style booleans to Python booleans
+    q = re.sub(r'\btrue\b', 'True', q)
+    q = re.sub(r'\bfalse\b', 'False', q)
+
     # "Col"/'Col' -> `Col`
     for col in sorted(headers, key=len, reverse=True):
         q = re.sub(rf'(?<!`)(["\']){re.escape(col)}\1(?!`)', f'`{col}`', q)
