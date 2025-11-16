@@ -107,7 +107,7 @@ Open http://localhost:5173 (Vite default). The frontend expects the backend at h
 - In dev, media is served by Django (see `MEDIA_URL`).
 - For production, use a proper storage service and reverse proxy; lock CORS settings.
 - Large files: pandas reads the full file; for huge datasets consider streaming or chunked processing.
-- Provide a optimised dataset context for better regex generation by summarizing headers. This can be done either via user instructions, a small user-uploaded sample or basic server-side stats (e.g., unique values, value lengths, etc).
+- Provide an optimised dataset context for better regex generation by summarizing headers. This can be done either via user instructions, a small user-uploaded sample or basic server-side stats (e.g., unique values, value lengths, etc).
 - Use LLM to refine user instructions to make the intent clearer.
 - Need more thorough testing with complex combinations of and / or conditions. This is still unstable. One way to make it more robust is to break down complex instructions into simpler steps. Or tell the LLM to only handle one condition at a time (or let LLM to define the condition is an AND or an OR). This is currently optimised by putting the `row_filter` field befroe the `pattern` field in the plan, so that the LLM can focus on row-level filtering first.
 - A future improvement could be to allow users to replace more than one value at a time (e.g., mapping "NY" → "New York", "CA" → "California", etc).
